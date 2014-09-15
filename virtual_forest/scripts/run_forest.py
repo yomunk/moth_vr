@@ -131,9 +131,9 @@ class VirtualForest(ShowBase):
         print(response)
         dt = globalClock.getDt()
 
-        if(response[:4] != "STOP" ):
+        if(response[:3] != "STO" ):
           self.flight_speed = 4
-          self.yaw_control = -(float(re.findall(r'-?\d+.\d+', response)[0]))
+          self.yaw_control =(float(re.findall(r'-?\d+.\d+', response)[0]))
         else:
           self.yaw_control = 0
           self.flight_speed = 0

@@ -6,10 +6,10 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <zmq.hpp>
-
+#include <sstream>
 using namespace::cv;
 using namespace::std;
-Point mousepoints= Point(294, 305); //used to record mouse clicks. the contour center is sent relative to this point
+Point mousepoints= Point(346, 344); //used to record mouse clicks. the contour center is sent relative to this point
 
 void CallbackFunc(int event1, int x, int y, int flags, void* userdata) //function used for mouse clicks
 {
@@ -101,7 +101,7 @@ double findthecontouryouwant(vector<vector<Point> > vector) //goes through conto
 			{
 				number = i;
 				area = thisarea;
-			}
+	 		}
 		}
 	}
 	return  number; //returns which contour in the vector you want
@@ -157,7 +157,6 @@ iseethatspot = true; //note that the spot is seen, loop broken
 	//the following lines are used to avoid an ROI out of bounds error; it makes sure that the window will always fit
 if(framenumber > 0 && !badlastframe)
     {
-
         if(ROIcenter[0] > mothframe0.cols - adjustedwindowsize)
 	{
 		ROIcenter[0] = mothframe0.cols - adjustedwindowsize;
@@ -181,7 +180,7 @@ if(framenumber > 0 && !badlastframe)
 	ROI = Rect(ROIcenter[0]-adjustedwindowsize, ROIcenter[1]-adjustedwindowsize, 2 * adjustedwindowsize,2 * adjustedwindowsize); //create the region of interes
 
 
-  imagewithROI = mothframe0(ROI); //set roi of mothframe0 to a new mat
+     imagewithROI = mothframe0(ROI); //set roi of mothframe0 to a new mat
 
 
 
@@ -194,7 +193,7 @@ else
 badlastframe = false;
 }
 
-	GaussianBlur(imagewithROI,blurredimage, Size(31,31),0,0); //blurs image to aid in contour finding, size refers to kernel size
+	GaussianBlur(imagewithROI,blurredimage, Size(21,21),0,0); //blurs image to aid in contour finding, size refers to kernel size
 	threshold(blurredimage, thresholdedframe,thresholdvalue, 255, THRESH_BINARY); // thresholds image to create black and white
 	Canny(thresholdedframe,contouredframe, 1,255, 3); //marks edjes of blurred image
 	findContours(contouredframe, contourvector, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0,0)); //finds and stores contours
@@ -202,7 +201,6 @@ badlastframe = false;
 
 	if(contourvector.size() > 0) //if we see some contours
 	{
-      //  badlastframe = false;
 	if(!wehavestartedgettingvalues)
 	{
 		wehavestartedgettingvalues = true; //CONGRATULATIONS! the first contour data has been collected!
@@ -238,19 +236,17 @@ badlastframe = false;
 
 
 
-        if(ticker < 4 || ticker > 8)
-		{
-                  	if(adjustedwindowsize < mothframe0.rows/2 - 25) //as long as the ROI window can fit comfortable in the imahe
+                  	if(adjustedwindowsize < mothframe0.rows/2 - 50 && ticker <2) //as long as the ROI window can fit comfortable in the image
 	{
-adjustedwindowsize = adjustedwindowsize + 10;  //increase the window size
+adjustedwindowsize = adjustedwindowsize +50;  //increase the window size
 			}
 			else
 			{
-				thresholdvalue -= 2;
+				thresholdvalue -= 5;
 			}
 
 
-                            }
+ //                           }
 
 	}
 
@@ -258,7 +254,7 @@ adjustedwindowsize = adjustedwindowsize + 10;  //increase the window size
 
 
 
-if(thresholdvalue < 2) //makes sure that threshold doesn't go too negative
+if(thresholdvalue < 2) //makes sure that threshold doesn't go negative
 {
   thresholdvalue = 255;
 }
@@ -286,6 +282,9 @@ if(thresholdvalue < 2) //makes sure that threshold doesn't go too negative
 
 int main()
 {
+timespec programstarttime;
+
+clock_gettime(CLOCK_REALTIME, &programstarttime);
 
 
   zmq::context_t context (1); //zeroMQ stuff
@@ -294,7 +293,7 @@ int main()
 	 namedWindow("mainwindow", CV_WINDOW_AUTOSIZE); //names window
 	namedWindow("contours", CV_WINDOW_AUTOSIZE); //names window
 	setMouseCallback("mainwindow", CallbackFunc, NULL); //sets mouse callback function, defined earlier
-        tracker program(180, 0, 0,200,1, 60); //creates tracker object
+        tracker program(180, 0, 0,210,1, 60); //creates tracker object
 	VideoCapture cap(0); //camera
 
         // Firefly settings
@@ -343,7 +342,7 @@ cout<<program.framenumber<<endl;
 	//program.mothframe0 = imread(program.file);
         if(!shithitthefan)
         {
-	program.imageprocesscentr(); //process frame
+        program.imageprocesscentr(); //process frame
 
         //cout<<"Current Thresh: "<<program.thresholdvalue<<endl;
         //cout<<program.thresholdvalue<<endl;
@@ -352,11 +351,22 @@ cout<<program.framenumber<<endl;
 			circle(program.supremewindow, Point(program.ROIcenter[0], program.ROIcenter[1]), 10, Scalar(0,80,0),3,8,0); //draw circle around center on supreme window,
 	line(program.supremewindow, mousepoints, Point(program.ROIcenter[0], program.ROIcenter[1]),Scalar(0,80,0),3,8,0); //and a line from it to the relative point
 
+
+ostringstream mousepointsstring;
+mousepointsstring<<"ORIGIN:"<<mousepoints.x<< " , "<<mousepoints.y;
+putText(program.supremewindow,mousepointsstring.str(), cvPoint(40,40), FONT_HERSHEY_COMPLEX_SMALL,0.8, cvScalar(200,0,0),1, CV_AA);
 imshow("mainwindow", program.supremewindow); //displays window
 imshow("contours", program.contouredframe); //displays window
 
+        ostringstream picfilename;
+        timespec current;
+        clock_gettime(CLOCK_REALTIME, &current);
+        int currentprogramtime = ((current.tv_sec + current.tv_nsec/1e9)-(programstarttime.tv_sec+programstarttime.tv_nsec/1e9))*1000;
+        //cout<<currentprogramtime<<endl;
+        picfilename<<"frames/"<<currentprogramtime<<".jpg";
+        string filename = picfilename.str();
+        imwrite(filename, program.supremewindow);
         }
-
 	program.framenumber++; //increase frame number
 	int SENDX = program.ROIcenter[0]-mousepoints.x; //sends the x and y coordinates of the largest contour center relative to the point selected by mouse
 	int SENDY = program.ROIcenter[1]-mousepoints.y;
@@ -367,7 +377,7 @@ imshow("contours", program.contouredframe); //displays window
         zmq::message_t message_y(20);
         snprintf ((char *) message_y.data(), 20, "centroid_y %d", SENDY);
         publisher.send(message_y);
-cout<<mousepoints.x<<" , "<<mousepoints.y<<endl;
+//cout<<mousepoints.x<<" , "<<mousepoints.y<<endl;
 	if(waitKey(20) == 27) //required; escape to quit
 	{
 			break; //if esc key, break--REQUIRED FOR OPENCV TO SHOW IMAGES

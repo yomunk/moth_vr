@@ -10,7 +10,9 @@ using namespace std;
 int main()
 {
 ofstream savefile;
+ofstream timeelapsed;
 savefile.open("DATA.csv");
+timeelapsed.open("timeelapsed.txt");
 zmq::context_t context(1);
 zmq::socket_t datasub(context, ZMQ_SUB);
 datasub.setsockopt(ZMQ_SUBSCRIBE, "", 0);
@@ -31,6 +33,10 @@ int i = 0;
 
 while(true)
 {
+
+zmq::message_t datamessage;
+  datasub.recv(&datamessage);
+
 clock_gettime(CLOCK_REALTIME, &time);
 
 long  sec = time.tv_sec;
@@ -39,8 +45,6 @@ double nowtime = sec + nsec/10e8-begtime;
 
 
 
-zmq::message_t datamessage;
-  datasub.recv(&datamessage);
 
 
   stringstream message(static_cast<char*>(datamessage.data()));
@@ -50,6 +54,7 @@ zmq::message_t datamessage;
   message>>topic>>value;
   if(topic == "STOP")
   {
+    timeelapsed<< nowtime <<endl;
     break;
   }
  cout<<topic<<","<<value<<","<<nowtime<<endl;
