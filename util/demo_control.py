@@ -14,8 +14,15 @@ def start(conditions):
 
 conditions = {'1': (2, 4), '2': (2, 8), '3': (4,4), '4': (4,8)}
 
+print('Choose wisely:')
+print('1) Slow and Foggy')
+print('2) Slow and Clear')
+print('3) Fast and Foggy')
+print('4) Fast and Clear')
+print('Anything else) Quit')
+
 while True:
-    cmd = raw_input('Ready: ')
+    cmd = raw_input('Ready:')
     if cmd in conditions.keys():
         start(conditions[cmd])
         raw_input('Press any key to stop: ')
