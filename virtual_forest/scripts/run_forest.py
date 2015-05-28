@@ -20,23 +20,27 @@ import re
 class VirtualForest(ShowBase):
     def __init__(self, forest):
 
-#        self.controller = Controller()
+        context = zmq.Context.instance()
 
-        ctx = zmq.Context.instance()
-        req = ctx.socket(zmq.REQ)
+        # Experiment node listens for START/STOP/END commands from the main experiment runloop.
+        expt = context.socket(zmq.SUB)
+        expt.connect("tcp://localhost:5555")
+        expt.setsockopt(zmq.SUBSCRIBE,"")
+        self.expt = expt
 
-        req.connect("tcp://localhost:5560")
-        self.req = req
+        # Controller node requests current control value from switchboard to update camera position at each frame.
+        controller = context.socket(zmq.REQ)
+        controller.connect("tcp://localhost:5560")
+        self.controller = controller
 
-        ctx2 = zmq.Context.instance()
-        publocation = ctx2.socket(zmq.PUB)
-
-        publocation.bind("tcp://*:5565")
-        self.publocation = publocation;
-
+        # Publisher node sends out pose.
+        publisher = context.socket(zmq.PUB)
+        publisher.bind("tcp://*:5561")
+        self.publisher = publisher;
 
         self.running = False
 
+        self.control_mode = "torque" # Alternative is "abdomen"
         self.yaw_control=0
         self.flight_speed=4
 
@@ -44,6 +48,8 @@ class VirtualForest(ShowBase):
 
         ShowBase.__init__(self)
         base.disableMouse()
+
+        self.gain=-100
 
         self.makeForestFloor()
 
@@ -58,7 +64,7 @@ class VirtualForest(ShowBase):
 
 
         self.camLens.setNear(0.1)
-        self.camLens.setFar(20)
+        self.camLens.setFar(100)
         self.setBackgroundColor(1,1,1)
 
         self.camera.setH(np.random.random()*360 - 180)
@@ -125,33 +131,46 @@ class VirtualForest(ShowBase):
 
 
     def motionTask(self, task):
+        # Check status of trial
+        try:
+            msg = self.expt.recv(zmq.NOBLOCK)
+        except zmq.ZMQError:
+            msg = ""
 
-        self.req.send(b"abdo")#torque
-        response = self.req.recv()
-        print(response)
-        dt = globalClock.getDt()
+        if msg[:5]=="START":
+            trial_params = [float(x) for x in msg.split()[1:]]
+            self.running = True
+            self.flight_speed = trial_params[0]
+            self.fog.setLinearRange(trial_params[1], trial_params[2])
+            render.setFog(self.fog)
 
-        if(response[:3] != "STO" ):
-          self.flight_speed = 4
-          self.yaw_control =(float(re.findall(r'-?\d+.\d+', response)[0]))
-        else:
-          self.yaw_control = 0
-          self.flight_speed = 0
-          self.center()
+        elif msg=="STOP":
+            self.running = False
+            self.flight_speed = 0
+            self.center()
+        elif msg=="END":
+            sys.exit()
 
-        self.camera.setH(self.camera, self.yaw_control*dt)
-        self.camera.setY(self.camera, self.flight_speed*dt)
+        if self.running:
+            dt = globalClock.getDt()
+            self.controller.send(self.control_mode)
+            response = self.controller.recv()
 
-        #self.pose.x = self.camera.getX()
-        #self.pose.y = self.camera.getY()
-        #self.pose.theta = np.radians(self.camera.getH())
-        CAMERAX = self.camera.getX()
-        CAMERAY = self.camera.getY()
-        HEADING = np.radians(self.camera.getH())
-        #print(CAMERAX, CAMERAY, HEADING)
-        self.publocation.send("CameraX %f" %  (CAMERAX))
-        self.publocation.send("CameraY %f"% (CAMERAY))
-        self.publocation.send("HEADING %f"% HEADING)
+            try:
+              #self.yaw_control=self.gain * (float(re.findall(r'-?\d+.\d+', response)[0]))
+              self.yaw_control=self.gain * float(response)
+            except:
+              pass
+
+            self.camera.setH(self.camera, self.yaw_control*dt)
+            self.camera.setY(self.camera, self.flight_speed*dt)
+
+            pos_x = self.camera.getX()
+            pos_y = self.camera.getY()
+            theta = np.radians(self.camera.getH())
+
+            self.publisher.send("pos_x {} pos_y {} theta {} control {}".format(
+                                 pos_x, pos_y, theta, self.yaw_control))
 
         return Task.cont
 
